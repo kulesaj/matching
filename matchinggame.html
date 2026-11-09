@@ -1,0 +1,439 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Developmental Milestone Matching Game</title>
+
+<style>
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    font-family: Arial, sans-serif;
+    background: #f5f5f5;
+    color: #333;
+    margin: 0;
+    padding: 20px;
+  }
+
+  .game-container {
+    max-width: 1000px;
+    margin: auto;
+  }
+
+  h2 {
+    text-align: center;
+    margin-bottom: 10px;
+  }
+
+  .instructions {
+    text-align: center;
+    color: #555;
+    margin-bottom: 25px;
+    font-size: 15px;
+  }
+
+  .game-board {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 30px;
+  }
+
+  .column h3 {
+    text-align: center;
+    font-size: 17px;
+    margin-bottom: 12px;
+  }
+
+  .milestone-list,
+  .age-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .milestone,
+  .age-target {
+    min-height: 65px;
+    padding: 12px;
+    border: 2px solid #999;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    font-size: 14px;
+    line-height: 1.4;
+    background: white;
+  }
+
+  .milestone {
+    cursor: grab;
+    user-select: none;
+    touch-action: none;
+    font-weight: 500;
+    transition: background-color 0.15s, border-color 0.15s;
+  }
+
+  .milestone:active {
+    cursor: grabbing;
+  }
+
+  .milestone.dragging {
+    position: fixed;
+    z-index: 1000;
+    opacity: 0.95;
+    cursor: grabbing;
+    box-shadow: 0 6px 16px rgba(0,0,0,0.2);
+    pointer-events: none;
+    transition: none;
+  }
+
+  .milestone.correct {
+    background: #65b875;
+    border-color: #39884b;
+    color: white;
+  }
+
+  .milestone.incorrect {
+    background: #d96868;
+    border-color: #b33b3b;
+    color: white;
+  }
+
+  .age-target {
+    border: 2px dashed #888;
+    background: #ededed;
+    font-weight: bold;
+    font-size: 16px;
+    color: #333;
+  }
+
+  .age-target.hover {
+    background: #e0e0e0;
+    border-color: #444;
+  }
+
+  .age-target.matched {
+    border: 2px solid #65b875;
+    background: #edf7ef;
+  }
+
+  .completion {
+    display: none;
+    text-align: center;
+    margin-top: 25px;
+    padding: 18px;
+    background: #e3f2e5;
+    border: 1px solid #65b875;
+    border-radius: 8px;
+    font-weight: bold;
+    color: #286b38;
+  }
+
+  .reset-container {
+    text-align: center;
+    margin-top: 20px;
+  }
+
+  button {
+    padding: 10px 22px;
+    border: none;
+    border-radius: 6px;
+    background: #444;
+    color: white;
+    cursor: pointer;
+    font-size: 14px;
+  }
+
+  button:hover {
+    background: #222;
+  }
+
+  @media (max-width: 600px) {
+    body {
+      padding: 10px;
+    }
+
+    .game-board {
+      gap: 10px;
+    }
+
+    .milestone,
+    .age-target {
+      font-size: 12px;
+      padding: 8px 5px;
+      min-height: 72px;
+    }
+
+    .age-target {
+      font-size: 14px;
+    }
+  }
+</style>
+</head>
+
+<body>
+
+<div class="game-container">
+
+  <h2>Developmental Milestone Matching Game</h2>
+
+  <p class="instructions">
+    Drag each developmental milestone on the left to the
+    age when the milestone typically occurs on the right.
+  </p>
+
+  <div class="game-board">
+
+    <div class="column">
+      <h3>Developmental Milestones</h3>
+      <div class="milestone-list" id="milestones"></div>
+    </div>
+
+    <div class="column">
+      <h3>Age</h3>
+      <div class="age-list" id="ages"></div>
+    </div>
+
+  </div>
+
+  <div class="completion" id="completion">
+    Excellent work! You matched all nine developmental milestones correctly!
+  </div>
+
+  <div class="reset-container">
+    <button onclick="resetGame()">Reset Game</button>
+  </div>
+
+</div>
+
+<script>
+
+const milestones = [
+  { text: "Rolls front to back", age: "4 months" },
+  { text: "Speaks in 2-word sentences", age: "24 months" },
+  { text: "Develops stranger anxiety", age: "6 months" },
+  { text: "Reciprocal smile", age: "2 months" },
+  { text: "Crawls", age: "7 months" },
+  { text: "Says 'mama' and 'dada' indiscriminately", age: "9 months" },
+  { text: "Uses cup and spoon", age: "15 months" },
+  { text: "Stands and walks alone", age: "12 months" },
+  { text: "Uses ~15-25 words", age: "18 months" }
+];
+
+const ages = [
+  "2 months",
+  "4 months",
+  "6 months",
+  "7 months",
+  "9 months",
+  "12 months",
+  "15 months",
+  "18 months",
+  "24 months"
+];
+
+let correctCount = 0;
+let activeItem = null;
+let startX = 0;
+let startY = 0;
+let originalX = 0;
+let originalY = 0;
+let offsetX = 0;
+let offsetY = 0;
+let originalWidth = 0;
+let originalHeight = 0;
+let currentTarget = null;
+
+const milestoneContainer = document.getElementById("milestones");
+const ageContainer = document.getElementById("ages");
+
+function initializeGame() {
+
+  milestoneContainer.innerHTML = "";
+  ageContainer.innerHTML = "";
+
+  correctCount = 0;
+
+  document.getElementById("completion").style.display = "none";
+
+  // Randomize milestone order
+  const shuffled = [...milestones].sort(() => Math.random() - 0.5);
+
+  shuffled.forEach((item) => {
+
+    const box = document.createElement("div");
+
+    box.className = "milestone";
+    box.textContent = item.text;
+    box.dataset.correctAge = item.age;
+
+    box.addEventListener("pointerdown", startDrag);
+
+    milestoneContainer.appendChild(box);
+
+  });
+
+  ages.forEach((age) => {
+
+    const box = document.createElement("div");
+
+    box.className = "age-target";
+    box.textContent = age;
+    box.dataset.age = age;
+
+    ageContainer.appendChild(box);
+
+  });
+
+}
+
+function startDrag(e) {
+
+  if (e.button !== 0 && e.pointerType === "mouse") return;
+
+  const item = e.currentTarget;
+
+  if (item.classList.contains("correct") ||
+      item.classList.contains("incorrect") ||
+      item.dataset.matched === "true") return;
+
+  activeItem = item;
+
+  const rect = item.getBoundingClientRect();
+
+  originalX = rect.left;
+  originalY = rect.top;
+  originalWidth = rect.width;
+  originalHeight = rect.height;
+
+  offsetX = e.clientX - rect.left;
+  offsetY = e.clientY - rect.top;
+
+  item.style.width = originalWidth + "px";
+  item.style.height = originalHeight + "px";
+  item.style.left = originalX + "px";
+  item.style.top = originalY + "px";
+  item.classList.add("dragging");
+
+  document.addEventListener("pointermove", moveDrag);
+  document.addEventListener("pointerup", endDrag);
+
+  e.preventDefault();
+
+}
+
+function moveDrag(e) {
+
+  if (!activeItem) return;
+
+  activeItem.style.left = (e.clientX - offsetX) + "px";
+  activeItem.style.top = (e.clientY - offsetY) + "px";
+
+  const element = document.elementFromPoint(e.clientX, e.clientY);
+  const target = element ? element.closest(".age-target") : null;
+
+  document.querySelectorAll(".age-target").forEach(box => {
+    box.classList.remove("hover");
+  });
+
+  currentTarget = target;
+
+  if (target && !target.classList.contains("matched")) {
+    target.classList.add("hover");
+  }
+
+}
+
+function endDrag(e) {
+
+  if (!activeItem) return;
+
+  document.removeEventListener("pointermove", moveDrag);
+  document.removeEventListener("pointerup", endDrag);
+
+  const element = document.elementFromPoint(e.clientX, e.clientY);
+  const target = element ? element.closest(".age-target") : null;
+
+  document.querySelectorAll(".age-target").forEach(box => {
+    box.classList.remove("hover");
+  });
+
+  if (
+    target &&
+    !target.classList.contains("matched") &&
+    target.dataset.age === activeItem.dataset.correctAge
+  ) {
+
+    // Correct answer
+    activeItem.classList.remove("dragging");
+    activeItem.classList.add("correct");
+
+    target.classList.add("matched");
+
+    const item = activeItem;
+    activeItem = null;
+
+    setTimeout(() => {
+
+      item.remove();
+      correctCount++;
+
+      if (correctCount === milestones.length) {
+        document.getElementById("completion").style.display = "block";
+      }
+
+    }, 300);
+
+  } else {
+
+    // Incorrect answer: animate back to original position
+    const item = activeItem;
+
+    item.classList.remove("dragging");
+    item.classList.add("incorrect");
+
+    item.style.transition =
+      "left 0.5s ease, top 0.5s ease, background-color 0.5s";
+
+    item.style.left = originalX + "px";
+    item.style.top = originalY + "px";
+
+    activeItem = null;
+
+    setTimeout(() => {
+
+      item.classList.remove("incorrect");
+
+      item.style.position = "";
+      item.style.left = "";
+      item.style.top = "";
+      item.style.width = "";
+      item.style.height = "";
+      item.style.zIndex = "";
+      item.style.opacity = "";
+      item.style.pointerEvents = "";
+      item.style.transition = "";
+
+    }, 500);
+
+  }
+
+  currentTarget = null;
+
+}
+
+function resetGame() {
+  initializeGame();
+}
+
+initializeGame();
+
+</script>
+
+</body>
+</html>
